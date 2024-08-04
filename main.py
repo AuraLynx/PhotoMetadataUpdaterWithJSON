@@ -4,9 +4,13 @@ from PIL import Image
 import json
 import os
 from pathlib import Path
+from tqdm import tqdm
+import shutil
+import traceback
 
 
 out_file = Path("output")
+error_file = Path("error")
 
 def format_date_taken(str_date: str):
     datetime_obj = datetime.strptime(str_date, '%Y/%m/%d %H:%M:%S %Z')
@@ -14,8 +18,12 @@ def format_date_taken(str_date: str):
     return datetime_str
 
 def get_date_taken(json_file):
-    with open(json_file) as f:
-        data = json.load(f)
+    try:
+        with open(json_file) as f:
+            data = json.load(f)
+    except UnicodeDecodeError as e:
+        with open(json_file, encoding='cp932') as f:
+            data = json.load(f)
     return data.get('creationTime', {}).get('formatted', None)
     
 def set_exif_date(image_path: Path, date_taken):
@@ -29,17 +37,41 @@ def set_exif_date(image_path: Path, date_taken):
     output_path = out_file / img_name
     im.save(output_path, exif=exif_bytes)
 
+def copy_img(image_path: Path, json_path: Path) -> None:
+    img_name = image_path.name
+    json_name = json_path.name
+
+    if image_path.exists():
+        img_output_path = error_file / img_name
+        shutil.copy2(image_path, img_output_path)
+
+    if json_path.exists():
+        json_output_path = error_file / json_name
+        shutil.copy2(json_path, json_output_path)
+
 def main():
-    photo_dir = Path('\\192.168.11.13\TunaCatFolder\Helpme_Python\Takeout\Google フォト\Photos from 1998')
-    photos = list(photo_dir.glob('**/*.jpg'))
-    for imagefile in photos:
-        print("total files are ", len(photos))
+    print("Start...")
+    photo_dir = Path('Takeout\Google フォト')
+    photos_gen = photo_dir.glob('**/*.jpg')
+    for imagefile in tqdm(photos_gen):
         print("file is ", imagefile)
         json_file = imagefile.with_name(imagefile.name + ".json")
+        output_path = out_file / imagefile.name
+        error_path = error_file / imagefile.name
 
-        date_taken = get_date_taken(json_file)
-        date_taken = format_date_taken(date_taken)
-        set_exif_date(imagefile, date_taken)
+        if not output_path.exists():
+            try:
+                date_taken = get_date_taken(json_file)
+                date_taken = format_date_taken(date_taken)
+                set_exif_date(imagefile, date_taken)
+            except Exception as e:
+                traceback.print_exc()
+                print("Error at ", imagefile)
+                print(e)
+                copy_img(imagefile, json_file)
+        else:
+            print("Skip: ", imagefile)
+            continue
 
 
 if __name__ == '__main__':

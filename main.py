@@ -51,7 +51,7 @@ def copy_img(image_path: Path, json_path: Path) -> None:
 
 def main():
     print("Start...")
-    photo_dir = Path('Takeout\Google フォト')
+    photo_dir = Path('data/')
     photos_gen = photo_dir.glob('**/*.jpg')
     for imagefile in tqdm(photos_gen):
         print("file is ", imagefile)
